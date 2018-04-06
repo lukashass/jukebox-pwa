@@ -1,21 +1,21 @@
 <template>
-<div class="search">
+<div class="search" @keyup.esc="$emit('close')">
   <h1>Search</h1>
   <p>
-    <input v-model="query">
+    <input v-model="query" autofocus>
     <button @click="query = 'britney'">britney</button>
   </p>
   <p v-if="!result">
     {{ message }}
   </p>
-  <div v-for="track in result">
-    <img :src="track.images[track.images.length - 1].url" height="50px"/>{{ track.artists }} - {{ track.name }} - <button @click="$emit('add-track', track.id)">Add song</button>
-  </div>
+  <search-track v-for="track in result" :track="track" :key="track.id"></search-track>
+  <a class="closebtn" @click="$emit('close')">&times;</a>
 </div>
 </template>
 
 <script>
 import _ from 'lodash'
+import searchTrack from './searchTrack.vue'
 
 export default {
   name: 'search',
@@ -24,6 +24,10 @@ export default {
       query: '',
       message: 'Search now!'
     }
+  },
+
+  components: {
+    searchTrack
   },
 
   methods: {
@@ -56,3 +60,46 @@ export default {
   props: ['result']
 }
 </script>
+
+<style media="screen">
+.search {
+  height: 100%;
+  width: 100%;
+  position: fixed;
+  z-index: 1;
+  top: 0;
+  left: 0;
+  background-color: rgb(0, 0, 0);
+  background-color: rgba(0, 0, 0, 0.9);
+  overflow-x: hidden;
+}
+
+.overlay-content {
+  position: relative;
+  top: 25%;
+  width: 100%;
+  text-align: center;
+  margin-top: 30px;
+}
+
+.search a {
+  padding: 8px;
+  text-decoration: none;
+  font-size: 36px;
+  color: #818181;
+  display: block;
+  transition: 0.3s;
+}
+
+.search a:hover,
+.overlay a:focus {
+  color: #f1f1f1;
+}
+
+.search .closebtn {
+  position: absolute;
+  top: 2%;
+  right: 2%;
+  font-size: 60px;
+}
+</style>

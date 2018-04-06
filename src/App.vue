@@ -1,12 +1,12 @@
 <template>
-  <div id="app">
-    <header>
-      <span>Jukebox</span>
-    </header>
-    <main>
-      <router-view></router-view>
-    </main>
-  </div>
+<div id="app">
+  <header>
+    <span>Jukebox</span>
+  </header>
+  <main>
+    <router-view></router-view>
+  </main>
+</div>
 </template>
 
 <script>
@@ -18,18 +18,21 @@ export default {
 <style>
 body {
   margin: 0;
+  background-color: #111;
 }
 
 #app {
   font-family: 'Avenir', Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  color: #2c3e50;
+  color: #fff;
 }
 
 main {
   text-align: center;
-  margin-top: 40px;
+  padding-top: 40px;
+
+  height: 100%;
 }
 
 header {

@@ -1,79 +1,56 @@
 <template>
-<div>
-  <h1 v-if="!isConnected">No connection to server.</h1>
+<div class="lobby">
+  <p>You are in lobby <i>{{ lobby.name }}</i> with <i>{{ lobby.onlineUsers }}</i> user(s), hosted by <i>{{ lobby.host }}</i></p>
+  <router-link :to="{ name: 'admin', params: { lobbyId: lobbyId} }">to admin</router-link>
+  <router-view :isAdmin="isAdmin"></router-view>
+  <p v-if="error === 'wrong_admin_password'">Wrong Password</p>
+  <p v-if="!lobby.isSpotifyConnected">Ask the host to connect to Spotify</p>
   <div v-else>
-    <div v-if="error === 'no lobby found'">
-      <p>Couldn't find lobby "{{ id }}"</p>
-      <input type="text" :value="id" @keyup.enter="submit" />
-    </div>
-    <p v-else-if="lobby.length === 0">Joining lobby "{{ id }}"</p>
-    <div v-else>
-      <p>You are in lobby <i>{{ lobby.name }}</i> hosted by <i>{{ lobby.host }}</i></p>
-      <p v-if="!lobby.isSpotifyConnected">Ask the host to connect to Spotify</p>
-      <div v-else>
-        <p>Currently playing {{ lobby.playingTrack }}</p>
-        <div v-for="track in lobby.queue">
-            <img :src="track.images[track.images.length - 1].url" height="50px"/> {{ track.name }}
-            <div>{{ track.score }}</div>
-            <button @click="upvote(track.id)" :class="{selected: (track.votes[null] === 1) }">upvote</button>
-            <button @click="downvote(track.id)" :class="{selected: (track.votes[null] === -1) }">downvote</button>
-        </div>
-      </div>
-      <a :href="authUrl" v-if="authUrl">Login Spoty</a>
-      <button @click="addTrack('6XobSqCw4kUJCm4gBUtbSJ')">Add song</button>
-      <button @click="reqAuth(id)">Request AuthURL</button>
-      <search @add-track="addTrack" :result="searchResults"></search>
-    </div>
+    <button @click="isSearch = true">Search</button>
+    <transition name="fade">
+      <search v-if="isSearch" @close="isSearch = false" :result="searchResults"></search>
+    </transition>
+    <transition-group name="flip-list" tag="div">
+      <queue-track v-for="track in queueSorted" :track="track" :userId="userId" :key="track.id"></queue-track>
+    </transition-group>
   </div>
+  <playing v-if="lobby.playingTrack" :track="lobby.playingTrack"></playing>
 </div>
 </template>
 
 <script>
+import Vue from 'vue'
 import Search from './Search.vue'
+import queueTrack from './queueTrack.vue'
+import Playing from './Playing.vue'
+import {
+  EventBus
+} from './event-bus.js'
 
 export default {
   data() {
     return {
-      isConnected: false,
-      lobby: [],
       isAdmin: false,
-      userId: null,
-      authUrl: '',
-      authCode: '',
-      error: '',
+      lobby: {},
+      error: null,
+      isSearch: false,
       searchResults: ''
     }
   },
 
   components: {
-    Search
+    Search,
+    queueTrack,
+    Playing
   },
 
   sockets: {
-    connect() {
-      console.log('connected');
-      // Fired when the socket connects.
-      this.isConnected = true
-      this.reqLobby(this.id)
-      // this.addTrack('6XobSqCw4kUJCm4gBUtbSJ')
-
-      if (this.authCode) {
-        this.authCallback(this.authCode)
-        this.authCode = ''
-      }
-    },
-
-    disconnect() {
-      this.isConnected = false
-      this.lobby = []
-    },
-
     // listeners
 
     lobby(data) {
       console.log(data)
 
-      this.error = ''
+      this.error = null
       if (data.error) {
         this.error = data.msg
         console.log(data.msg)
@@ -85,9 +62,49 @@ export default {
           this.lobby = data.lobby
           // this.queueToTracks()
           break
-        case 'authUrl':
-          this.authUrl = data.url
+        case 'track':
+          for (let track of this.lobby.queue) {
+            if (track.id === data.trackId) {
+              Vue.set(track, 'score', data.score)
+              Vue.set(track, 'position', data.position)
+              break
+            }
+          }
+          break;
+        case 'newTrack':
+          this.lobby.queue.push(data.track)
+          break;
+        case 'vote':
+          for (let track of this.lobby.queue) {
+            if (track.id === data.trackId) {
+              Vue.set(track, 'vote', data.vote)
+              break
+            }
+          }
+          break;
+        case 'playingTrack':
+          this.lobby.playingTrack = data.track
+          Vue.set(this.lobby.playingTrack, 'offset', data.offset)
+          Vue.set(this.lobby.playingTrack, 'start', data.start)
+
+          var queue = this.lobby.queue
+          this.lobby.queue.some(function(track, i) {
+            if (track.id === data.track.id) {
+              Vue.delete(queue, i)
+              return true
+            }
+          })
+          break;
+        case 'spotifyAccess':
+          Vue.set(this.lobby, 'isSpotifyConnected', data.connected)
           break
+        case 'onlineUsers':
+          this.lobby.onlineUsers = data.onlineUsers
+          break;
+        case 'pauseTrack':
+          EventBus.$emit('pause', Date.now())
+          console.log('pause');
+          break;
         default:
           console.log(data.type)
       }
@@ -105,7 +122,7 @@ export default {
 
       switch (data.type) {
         case 'track':
-          this.$set(this.tracks, data.track.id, data.track)
+          Vue.set(this.tracks, data.track.id, data.track)
           break
         case 'search':
           this.searchResults = data.results
@@ -115,7 +132,7 @@ export default {
       }
     },
 
-    system(data) {
+    admin(data) {
       console.log(data)
 
       this.error = ''
@@ -126,9 +143,8 @@ export default {
       }
 
       switch (data.type) {
-        case 'userId':
-          this.userId = data.userId
-          setCookie('userId', data.userId, 10)
+        case 'admin':
+          this.isAdmin = data.loggedin
           break
         default:
           console.log(data.type)
@@ -137,54 +153,12 @@ export default {
   },
 
   methods: {
-    reqLobby(lobby) {
+    joinLobby() {
       this.$socket.emit('system', {
-        type: 'select',
-        lobbyId: lobby,
-        userId: this.userId
+        type: 'join',
+        lobbyId: this.lobbyId,
       })
-      console.log('select')
-    },
-    reqAuth(id) {
-      this.$socket.emit('lobby', {
-        type: 'authUrl',
-        url: location.protocol + '//' + location.hostname + (location.port ? ':' + location.port : '') + '/callback/'
-      })
-      console.log('auth')
-    },
-    addTrack(id) {
-      this.$socket.emit('lobby', {
-        type: 'addTrack',
-        track: id
-      })
-      console.log('add');
-    },
-    upvote(id) {
-      this.$socket.emit('lobby', {
-        type: 'upvote',
-        track: id
-      })
-    },
-    downvote(id) {
-      this.$socket.emit('lobby', {
-        type: 'downvote',
-        track: id
-      })
-    },
-    authCallback(code) {
-      this.$socket.emit('lobby', {
-        type: 'authCallback',
-        code: code
-      })
-    },
-    submit(event) {
-      this.$router.push({
-        name: 'lobby',
-        params: {
-          id: event.target.value
-        }
-      })
-    },
+    }
     /* queueToTracks() {
       for (let i in this.lobby.queue) {
         let id = this.lobby.queue[i].id
@@ -198,6 +172,12 @@ export default {
     }*/
   },
 
+  computed: {
+    queueSorted: function() {
+      return this.lobby.queue.sort((a, b) => b.score - a.score || b.position - a.position)
+    }
+  },
+
   // {type: 'upvote', track: <track>}
 
   // channel: spotify
@@ -207,45 +187,35 @@ export default {
   // {type: 'search', query: <query>}
   // socket.emit('spotify', {type: 'search', results: results})
 
-  watch: {
-    id: function(newVal) {
-      this.reqLobby(newVal)
-    }
-  },
-
-  props: ['id'],
+  props: ['lobbyId', 'userId'],
 
   created: function() {
-    // catches GET code and removes it from url
-    this.authCode = this.$route.query.code
-    this.$router.push({
-      path: this.$route.path,
-      query: null
-    })
-
-    this.userId = getCookie('userId')
+    this.joinLobby()
   }
-}
-
-function setCookie (cname, cvalue, exdays) {
-  var d = new Date()
-  d.setTime(d.getTime() + (exdays * 24 * 60 * 60 * 1000))
-  var expires = 'expires=' + d.toUTCString()
-  document.cookie = cname + '=' + cvalue + ';' + expires + ';path=/'
-}
-
-function getCookie (cname) {
-  var name = cname + '='
-  var ca = document.cookie.split(';')
-  for (var i = 0; i < ca.length; i++) {
-    var c = ca[i]
-    while (c.charAt(0) === ' ') {
-      c = c.substring(1)
-    }
-    if (c.indexOf(name) === 0) {
-      return c.substring(name.length, c.length)
-    }
-  }
-  return null
 }
 </script>
+
+<style media="screen">
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity .5s;
+}
+
+.fade-enter,
+.fade-leave-to {
+  opacity: 0;
+}
+
+.flip-list-move {
+  transition: transform .5s;
+}
+
+.lobby {
+  margin-bottom: 60px;
+  height: 100%;
+}
+
+.info {
+  display: inline-block;
+}
+</style>

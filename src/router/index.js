@@ -1,36 +1,53 @@
 import Vue from 'vue'
 import Router from 'vue-router'
 import Hello from '@/components/Hello'
-import Lobby from '@/components/Lobby'
+import Main from '@/components/Main'
+import Admin from '@/components/Admin'
 
 Vue.use(Router)
 
 export default new Router({
   mode: 'history',
-  routes: [{
-    path: '/',
-    name: 'Hello',
-    component: Hello
-  },
-  {
-    path: '/lobby/',
-    component: Lobby
-  },
-  {
-    path: '/lobby/:id',
-    name: 'lobby',
-    component: Lobby,
-    props: true
-  },
-  {
-    path: '/callback/',
+  routes: [
+    {
+      path: '/',
+      name: 'Hello',
+      component: Hello
+    },
+    {
+      path: '/lobby/',
+      component: Main
+    },
+    {
+      path: '/lobby/:lobbyId',
+      name: 'lobby',
+      component: Main,
+      props: true,
+      children: [{
+        path: 'admin',
+        name: 'admin',
+        component: Admin
+      }]
+    },
+    {
+      path: '/callback/',
 
-    redirect: to => {
-      const { query } = to
-      if (query.state && query.code) {
-        return { name: 'lobby', params: { id: query.state }, query: { code: query.code } }
+      redirect: to => {
+        const {
+          query
+        } = to
+        if (query.state && query.code) {
+          return {
+            name: 'admin',
+            params: {
+              lobbyId: query.state
+            },
+            query: {
+              code: query.code
+            }
+          }
+        }
       }
     }
-  }
   ]
 })

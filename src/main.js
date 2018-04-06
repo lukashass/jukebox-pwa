@@ -4,9 +4,12 @@ import Vue from 'vue'
 import App from './App'
 import router from './router'
 import VueSocketIO from 'vue-socket.io'
+import Icon from 'vue-awesome/components/Icon'
+import CONFIG from '../config/config.js'
 
-Vue.use(VueSocketIO, 'http://ju60.de:3000')
-// Vue.use(VueSocketIO, 'http://metinseylan.com:1992/')
+Vue.use(VueSocketIO, CONFIG.API_URL)
+
+Vue.component('icon', Icon)
 
 Vue.config.productionTip = false
 
@@ -15,5 +18,7 @@ new Vue({
   el: '#app',
   router,
   template: '<App/>',
-  components: { App }
+  components: {
+    App
+  }
 })
